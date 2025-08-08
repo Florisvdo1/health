@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>HealthTask App</title>
+  <!-- Calm‑inspired styles combining the existing event dashboard with the new taken page, mood slider and drag‑and‑drop system. -->
+  <style>
+    :root {
+      --color-bg-start: #051937;
+      --color-bg-mid:   #008793;
+      --color-bg-end:   #a8eb12;
+      --color-card-bg: rgba(255, 255, 255, 0.12);
+      --color-card-border: rgba(255, 255, 255, 0.3);
+      --color-text: #ffffff;
+      --color-accent: #7faaf8;
+      --color-active: #6d8bdc;
+      --bubble-size: 16px;
+      --card-size: 300px;
+      --card-padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      color: var(--color-text);
+      overflow-x: hidden;
+      position: relative;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -10;
+      background-image: linear-gradient(to right bottom, var(--color-bg-start), #004d7a, var(--color-bg-mid), #00bf72, var(--color-bg-end));
+      background-size: 500% 500%;
+      animation: gradientShift 25s ease-in-out infinite;
+    }
+    @keyframes gradientShift {
+      0% { background-position: 100% 0%; }
+      50% { background-position: 0% 100%; }
+      100% { background-position: 100% 0%; }
+    }
+    #clouds {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: -5;
+    }
+    .cloud {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.25;
+      filter: blur(80px);
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.2) 60%, transparent 100%);
+      animation: cloudHue 40s linear infinite, cloudFloat 50s ease-in-out infinite;
+    }
+    .cloud1 { top: 15%; left: 20%; width: 260px; height: 220px; }
+    .cloud2 { top: 45%; left: 65%; width: 300px; height: 260px; animation-delay: 8s; }
+    .cloud3 { top: 75%; left: 30%; width: 240px; height: 200px; animation-delay: 16s; }
+    .cloud4 { top: 25%; left: 80%; width: 220px; height: 240px; animation-delay: 24s; }
+    @keyframes cloudHue {
+      0% { filter: hue-rotate(0deg); }
+      50% { filter: hue-rotate(120deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+    @keyframes cloudFloat {
+      0%,100% { transform: translate(0,0); }
+      50% { transform: translate(-40px, -20px); }
+    }
+    /* Header containing live clock, weather and tasks toggle */
+    #app-header {
+      width: calc(100% - 40px);
+      margin: 20px;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255,255,255,0.25);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      z-index: 1;
+    }
+    .header-time { flex: 0 0 auto; display: flex; align-items: center; }
+    .live-time { font-size: 1.4rem; font-weight: 500; }
+    .header-weather { flex: 1 1 auto; display: flex; justify-content: center; }
+    .header-tasks { flex: 0 0 auto; display: flex; align-items: center; }
+    .header-tasks button { background: #6d8bdc; color: white; border: none; padding: 8px 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer; font-weight: 600; }
+    /* Event cards list */
+    #events-container { width: 100%; padding: 20px; padding-top: 0; display: flex; flex-wrap: wrap; gap: 24px; box-sizing: border-box; }
+    .event-card { width: calc(100% - 40px); background: var(--color-card-bg); border: 1px solid var(--color-card-border); border-radius: 24px; box-shadow: 0 8px 16px rgba(0,0,0,0.1); backdrop-filter: blur(20px); padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; transition: all 0.3s ease; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .event-title { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 600; }
+    .event-title svg { width: 36px; height: 36px; color: white; }
+    .bubble { width: var(--bubble-size); height: var(--bubble-size); border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); transition: background 0.2s ease, transform 0.2s ease; cursor: pointer; }
+    .bubble.active { background: var(--color-accent); border-color: var(--color-accent); transform: scale(1.2); box-shadow: 0 0 4px rgba(255,255,255,0.6) inset, 0 0 6px var(--color-accent); }
+    .zone-group { margin-top: 8px; }
+    .zone-title { font-size: 0.75rem; opacity: 0.8; margin-bottom: 4px; }
+    .zone-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; }
+    .slot-col { display: flex; flex-direction: column; align-items: center; }
+    .slot-time { font-size: 0.65rem; opacity: 0.8; }
+    /* Footer chips for minimized events */
+    #footer { position: fixed; bottom: 0; left: 0; width: 100%; display: flex; gap: 8px; padding: 8px 12px; box-sizing: border-box; background: rgba(0,0,0,0.15); backdrop-filter: blur(12px); overflow-x: auto; z-index: 2; }
+    .footer-chip { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 18px; background: var(--color-card-bg); border: 1px solid var(--color-card-border); backdrop-filter: blur(10px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); white-space: nowrap; }
+    .footer-chip button { background: none; border: none; color: white; font-size: 1rem; cursor: pointer; }
+    /* Taken page styles */
+    #tasksPage { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); padding: 40px 20px; box-sizing: border-box; overflow-y: auto; display: none; z-index: 3; }
+    #tasksPage h2 { text-align: center; margin-bottom: 16px; }
+    #moodSection { margin-bottom: 32px; }
+    .person-chip { display: inline-block; padding: 6px 10px; border-radius: 14px; color: white; margin: 4px; cursor: pointer; }
+    .dropzone { min-height: 2rem; padding: 8px; background: rgba(255,255,255,0.1); border: 1px dashed rgba(255,255,255,0.3); border-radius: 8px; display: flex; align-items: center; justify-content: flex-start; margin-top: 4px; }
+    .drop-hover { background: rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div id="clouds">
+    <div class="cloud cloud1"></div>
+    <div class="cloud cloud2"></div>
+    <div class="cloud cloud3"></div>
+    <div class="cloud cloud4"></div>
+  </div>
+  <!-- Header -->
+  <div id="app-header">
+    <div class="header-time"><div class="live-time" id="liveClock"></div></div>
+    <div class="header-weather" id="weatherContainer"></div>
+    <div class="header-tasks"><button id="toggleTasks">Taken</button></div>
+  </div>
+  <!-- Main events container -->
+  <div id="events-container"></div>
+  <!-- Footer for minimized chips -->
+  <div id="footer"></div>
+  <!-- Tasks Page (hidden by default) -->
+  <div id="tasksPage">
+    <button id="closeTasks" style="background:#6d8bdc;color:white;border:none;padding:8px 12px;border-radius:8px;float:right;">Sluiten</button>
+    <h2>Taken</h2>
+    <section id="moodSection">
+      <h3>Hoe voel je je vandaag?</h3>
+      <div style="display:flex;justify-content:center;gap:16px;margin-bottom:8px;font-size:28px;">
+        <span>😠</span><span>😕</span><span>😐</span><span>🙂</span><span>😄</span>
+      </div>
+      <input type="range" id="moodSlider" min="1" max="5" step="1" style="width:100%;">
+      <p id="moodLabel" style="text-align:center;margin-top:8px;font-weight:bold;"></p>
+    </section>
+    <section id="dragSection">
+      <h3>Wijs taken toe</h3>
+      <div id="peopleList">
+        <span class="person-chip" data-person="Floris" style="background:#4f46e5;">Floris</span>
+        <span class="person-chip" data-person="Romee" style="background:#059669;">Romee</span>
+        <span class="person-chip" data-person="Sabine" style="background:#8b5cf6;">Sabine</span>
+        <span class="person-chip" data-person="Moeder" style="background:#ec4899;">Moeder</span>
+      </div>
+      <div id="taskList" style="margin-top:16px;">
+        <div class="task-item" style="margin-bottom:12px;">
+          <input class="task-text" value="Boodschappen doen" style="width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;">
+          <div class="dropzone" data-index="0">Sleep persoon hier</div>
+        </div>
+        <div class="task-item" style="margin-bottom:12px;">
+          <input class="task-text" value="Afwas" style="width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;">
+          <div class="dropzone" data-index="1">Sleep persoon hier</div>
+        </div>
+        <div class="task-item" style="margin-bottom:12px;">
+          <input class="task-text" value="Stofzuigen" style="width:100%;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:white;">
+          <div class="dropzone" data-index="2">Sleep persoon hier</div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+    // Live clock update
+    function updateClock() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('liveClock').textContent = hh + ':' + mm;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+    // Weather API integration (OpenWeather)
+    const weatherApiKey = 'a8c8d84ac1c7f9dcf70ad3b2f23b9c9e';
+    function getWeatherIcon(condition) {
+      if (condition === 'Clear') return '<span>☀️</span>';
+      if (condition === 'Rain' || condition === 'Drizzle') return '<span>🌧️</span>';
+      if (condition === 'Snow') return '<span>❄️</span>';
+      if (condition === 'Thunderstorm') return '<span>⛈️</span>';
+      return '<span>☁️</span>';
+    }
+    function renderWeather(data) {
+      const container = document.getElementById('weatherContainer');
+      if (!data) return;
+      const temp = data.temp != null ? Math.round(data.temp) + '°C' : '';
+      container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;"><div style="font-size:24px;">' + getWeatherIcon(data.condition) + '</div><div>' + temp + '</div><div style="font-size:12px;opacity:0.8;">' + data.city + '</div></div>';
+    }
+    function fetchWeather(lat, lon) {
+      const geoUrl = `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${weatherApiKey}`;
+      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${weatherApiKey}`;
+      Promise.all([fetch(geoUrl), fetch(weatherUrl)]).then(([g, w]) => Promise.all([g.json(), w.json()])).then(([geoData, wData]) => {
+        const city = Array.isArray(geoData) && geoData[0] && geoData[0].name || '';
+        const temp = wData.main && wData.main.temp;
+        const condition = wData.weather && wData.weather[0] && wData.weather[0].main;
+        const data = { city, temp, condition };
+        localStorage.setItem('weatherData', JSON.stringify(data));
+        renderWeather(data);
+      }).catch(console.error);
+    }
+    function initWeather() {
+      const cached = localStorage.getItem('weatherData');
+      if (cached) {
+        try { renderWeather(JSON.parse(cached)); } catch(e) {}
+      }
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          fetchWeather(pos.coords.latitude, pos.coords.longitude);
+        }, () => {});
+      }
+    }
+    initWeather();
+    // Event definitions and timeline
+    const events = [
+      { id:'opgestaan', name:'Opgestaan', icon:'☀️' },
+      { id:'koffie', name:'Koffie', icon:'☕' },
+      { id:'maaltijd', name:'Maaltijd', icon:'🍽️' },
+      { id:'water', name:'Water', icon:'💧' },
+      { id:'dutje', name:'Dutje', icon:'😴' },
+      { id:'sport', name:'Sporten', icon:'🏃' },
+      { id:'meditatie', name:'Meditatie', icon:'🧘' }
+    ];
+    const timeSlots = [ { time:'06:00', zone:'Ochtend' }, { time:'07:00', zone:'Ochtend' }, { time:'08:00', zone:'Ochtend' }, { time:'09:00', zone:'Ochtend' }, { time:'10:00', zone:'Ochtend' }, { time:'11:00', zone:'Ochtend' }, { time:'12:00', zone:'Middag' }, { time:'13:00', zone:'Middag' }, { time:'14:00', zone:'Middag' }, { time:'15:00', zone:'Middag' }, { time:'16:00', zone:'Middag' }, { time:'17:00', zone:'Middag' }, { time:'18:00', zone:'Avond' }, { time:'19:00', zone:'Avond' }, { time:'20:00', zone:'Avond' }, { time:'21:00', zone:'Avond' }, { time:'22:00', zone:'Avond' }, { time:'23:59', zone:'Avond' } ];
+    const eventsContainer = document.getElementById('events-container');
+    const footer = document.getElementById('footer');
+    const cardElements = {};
+    // Build event cards
+    events.forEach(event => {
+      const card = document.createElement('div');
+      card.className = 'event-card';
+      card.dataset.eventId = event.id;
+      // header
+      const header = document.createElement('div');
+      header.className = 'card-header';
+      const title = document.createElement('div');
+      title.className = 'event-title';
+      title.innerHTML = '<span style="font-size:24px;">' + event.icon + '</span><span>' + event.name + '</span>';
+      header.appendChild(title);
+      const minBtn = document.createElement('button');
+      minBtn.textContent = '–';
+      minBtn.style.background='none';
+      minBtn.style.border='none';
+      minBtn.style.color='white';
+      minBtn.style.fontSize='20px';
+      minBtn.style.cursor='pointer';
+      minBtn.addEventListener('click', () => minimizeEvent(event.id));
+      header.appendChild(minBtn);
+      card.appendChild(header);
+      // timeline
+      const timeline = document.createElement('div');
+      timeline.className = 'timeline';
+      let currentZone = '';
+      let currentRow;
+      timeSlots.forEach(slot => {
+        if (slot.zone !== currentZone) {
+          currentZone = slot.zone;
+          const group = document.createElement('div');
+          group.className = 'zone-group';
+          const zoneTitle = document.createElement('div');
+          zoneTitle.className = 'zone-title';
+          zoneTitle.textContent = currentZone;
+          group.appendChild(zoneTitle);
+          const row = document.createElement('div');
+          row.className = 'zone-row';
+          group.appendChild(row);
+          timeline.appendChild(group);
+          currentRow = row;
+        }
+        const col = document.createElement('div');
+        col.className = 'slot-col';
+        const timeLabel = document.createElement('div');
+        timeLabel.className = 'slot-time';
+        timeLabel.textContent = slot.time;
+        col.appendChild(timeLabel);
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.dataset.eventId = event.id;
+        bubble.dataset.time = slot.time;
+        // restore state
+        if (localStorage.getItem('event_' + event.id + '_' + slot.time) === '1') {
+          bubble.classList.add('active');
+        }
+        bubble.addEventListener('click', () => {
+          const key = 'event_' + event.id + '_' + slot.time;
+          const active = bubble.classList.toggle('active');
+          if (active) localStorage.setItem(key, '1'); else localStorage.removeItem(key);
+        });
+        col.appendChild(bubble);
+        currentRow.appendChild(col);
+      });
+      card.appendChild(timeline);
+      eventsContainer.appendChild(card);
+      cardElements[event.id] = card;
+    });
+    // minimize and restore events
+    function minimizeEvent(eventId) {
+      const card = cardElements[eventId];
+      if (!card) return;
+      card.style.display = 'none';
+      // create chip
+      const chip = document.createElement('div');
+      chip.className = 'footer-chip';
+      chip.textContent = events.find(e=>e.id===eventId).name;
+      const btn = document.createElement('button');
+      btn.textContent = '+';
+      btn.addEventListener('click', () => restoreEvent(eventId, chip));
+      chip.appendChild(btn);
+      footer.appendChild(chip);
+    }
+    function restoreEvent(eventId, chip) {
+      const card = cardElements[eventId];
+      card.style.display = 'flex';
+      chip.remove();
+    }
+    // Tasks page logic
+    const toggleBtn = document.getElementById('toggleTasks');
+    const closeBtn = document.getElementById('closeTasks');
+    const tasksPage = document.getElementById('tasksPage');
+    toggleBtn.addEventListener('click', () => { tasksPage.style.display = 'block'; });
+    closeBtn.addEventListener('click', () => { tasksPage.style.display = 'none'; });
+    // Mood slider
+    const moodSlider = document.getElementById('moodSlider');
+    const moodLabel = document.getElementById('moodLabel');
+    function updateMoodLabel(val) {
+      const moods = ['Boos','Verdrietig','Neutraal','Blij','Heel blij'];
+      moodLabel.textContent = 'Je voelt je: ' + moods[val-1];
+    }
+    moodSlider.value = localStorage.getItem('currentMood') || 3;
+    updateMoodLabel(moodSlider.value);
+    moodSlider.addEventListener('input', e => {
+      updateMoodLabel(e.target.value);
+      localStorage.setItem('currentMood', e.target.value);
+    });
+    // Drag & drop tasks
+    const personChips = document.querySelectorAll('#peopleList .person-chip');
+    const dropzones = document.querySelectorAll('.dropzone');
+    const taskInputs = document.querySelectorAll('.task-text');
+    let tasks = [];
+    function loadAssignments() {
+      const saved = localStorage.getItem('assignedTasks');
+      const arr = saved ? JSON.parse(saved) : [];
+      tasks = [];
+      dropzones.forEach((dz, idx) => {
+        const text = taskInputs[idx].value.trim();
+        const found = arr.find(t => t.text === text);
+        const assigned = found ? found.assignedTo : null;
+        tasks.push({ text, assignedTo: assigned });
+        dz.textContent = assigned || 'Sleep persoon hier';
+      });
+    }
+    loadAssignments();
+    function saveAssignments() { localStorage.setItem('assignedTasks', JSON.stringify(tasks)); }
+    taskInputs.forEach((input, idx) => {
+      input.addEventListener('change', () => {
+        tasks[idx].text = input.value.trim();
+        saveAssignments();
+      });
+    });
+    let ghost = null;
+    let dragging = null;
+    personChips.forEach(chip => {
+      chip.addEventListener('pointerdown', e => {
+        dragging = chip.getAttribute('data-person');
+        ghost = chip.cloneNode(true);
+        ghost.style.position = 'fixed';
+        ghost.style.zIndex = '9999';
+        ghost.style.pointerEvents = 'none';
+        document.body.appendChild(ghost);
+        moveGhost(e);
+        document.body.addEventListener('pointermove', onMove);
+        document.body.addEventListener('pointerup', onUp);
+      });
+    });
+    function moveGhost(e) { if (ghost) { ghost.style.left = (e.clientX+5)+'px'; ghost.style.top = (e.clientY+5)+'px'; } }
+    function onMove(e) {
+      moveGhost(e);
+      dropzones.forEach(dz => {
+        const rect = dz.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          dz.classList.add('drop-hover');
+        } else {
+          dz.classList.remove('drop-hover');
+        }
+      });
+    }
+    function onUp(e) {
+      dropzones.forEach((dz, idx) => {
+        dz.classList.remove('drop-hover');
+        const rect = dz.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          tasks[idx].assignedTo = dragging;
+          dz.textContent = dragging;
+          saveAssignments();
+        }
+      });
+      if (ghost) ghost.remove();
+      ghost = null;
+      document.body.removeEventListener('pointermove', onMove);
+      document.body.removeEventListener('pointerup', onUp);
+    }
+  </script>
+</body>
+</html>
